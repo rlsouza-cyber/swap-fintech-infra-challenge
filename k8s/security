@@ -1,0 +1,96 @@
+# NetworkPolicies for securing communication between services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-transaction-api
+  namespace: transaction-api
+spec:
+  podSelector:
+    matchLabels:
+      app: transaction-api
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: notification-service
+      - from:
+        - podSelector:
+            matchLabels:
+              app: transaction-api
+  policyTypes:
+    - Ingress
+
+---
+# NetworkPolicies for securing communication between services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-notification-service
+  namespace: notification-service
+spec:
+  podSelector:
+    matchLabels:
+      app: notification-service
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: transaction-api
+  policyTypes:
+    - Ingress
+
+---
+# Role for Transaction API
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: transaction-api
+  name: transaction-api-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding for Transaction API
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: transaction-api-rolebinding
+  namespace: transaction-api
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: transaction-api
+roleRef:
+  kind: Role
+  name: transaction-api-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Role for Notification Service
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: notification-service
+  name: notification-service-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding for Notification Service
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: notification-service-rolebinding
+  namespace: notification-service
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: notification-service
+roleRef:
+  kind: Role
+  name: notification-service-role
+  apiGroup: rbac.authorization.k8s.io

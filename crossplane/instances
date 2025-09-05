@@ -1,0 +1,123 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: fintech-platform-composition
+  labels:
+    guide: "fintech"
+spec:
+  compositeTypeRef:
+    apiVersion: fintech.example.org/v1alpha1
+    kind: FintechPlatform
+  resources:
+    - name: vpc
+      base:
+        apiVersion: ec2.aws.crossplane.io/v1alpha1
+        kind: VPC
+        spec:
+          forProvider:
+            cidrBlock: "10.0.0.0/16"
+            enableDnsSupport: true
+            enableDnsHostnames: true
+          writeConnectionSecretToRef:
+            namespace: crossplane-system
+            name: vpc-connection
+      patches:
+        - fromFieldPath: "metadata.name"
+          toFieldPath: "spec.forProvider.vpcId"
+          
+    - name: eksCluster
+      base:
+        apiVersion: eks.aws.crossplane.io/v1alpha1
+        kind: Cluster
+        spec:
+          forProvider:
+            name: fintech-eks
+            region: us-west-2
+            version: "1.21"
+            roleArn: "arn:aws:iam::123456789012:role/eks-cluster-role"
+            vpcConfig:
+              vpcId: "vpc-connection"
+          writeConnectionSecretToRef:
+            namespace: crossplane-system
+            name: eks-cluster-connection
+      patches:
+        - fromFieldPath: "metadata.name"
+          toFieldPath: "spec.forProvider.clusterName"
+
+    - name: rdsInstance
+      base:
+        apiVersion: rds.aws.crossplane.io/v1alpha1
+        kind: DBInstance
+        spec:
+          forProvider:
+            dbInstanceClass: db.t3.micro
+            engine: postgres
+            engineVersion: "13"
+            masterUsername: "admin"
+            allocatedStorage: 20
+            dbSubnetGroupName: "fintech-db-subnet-group"
+            vpcSecurityGroupIds:
+              - "sg-12345678"
+          writeConnectionSecretToRef:
+            namespace: crossplane-system
+            name: rds-instance-connection
+      patches:
+        - fromFieldPath: "metadata.name"
+          toFieldPath: "spec.forProvider.dbInstanceIdentifier"
+
+    - name: elasticache
+      base:
+        apiVersion: elasticache.aws.crossplane.io/v1alpha1
+        kind: CacheCluster
+        spec:
+          forProvider:
+            cacheNodeType: cache.t3.micro
+            engine: redis
+            numCacheNodes: 1
+            vpcSecurityGroupIds:
+              - "sg-12345678"
+          writeConnectionSecretToRef:
+            namespace: crossplane-system
+            name: elasticache-connection
+      patches:
+        - fromFieldPath: "metadata.name"
+          toFieldPath: "spec.forProvider.cacheClusterId"
+
+    - name: applicationLoadBalancer
+      base:
+        apiVersion: elbv2.aws.crossplane.io/v1alpha1
+        kind: LoadBalancer
+        spec:
+          forProvider:
+            name: fintech-alb
+            type: application
+            securityGroups:
+              - "sg-12345678"
+            subnets:
+              - "subnet-12345678"
+          writeConnectionSecretToRef:
+            namespace: crossplane-system
+            name: alb-connection
+      patches:
+        - fromFieldPath: "metadata.name"
+          toFieldPath: "spec.forProvider.loadBalancerName"
+
+    - name: route53Record
+      base:
+        apiVersion: route53.aws.crossplane.io/v1alpha1
+        kind: RecordSet
+        spec:
+          forProvider:
+            zoneId: "Z123456789"
+            name: "fintech.example.com"
+            type: "A"
+            alias:
+              evaluateTargetHealth: true
+              hostedZoneId: "Z123456789"
+              dnsName: "fintech-alb-12345678.us-west-2.elb.amazonaws.com"
+          writeConnectionSecretToRef:
+            namespace: crossplane-system
+            name: route53-connection
+      patches:
+        - fromFieldPath: "metadata.name"
+          toFieldPath: "spec.forProvider.name"
